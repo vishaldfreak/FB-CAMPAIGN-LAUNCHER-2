@@ -14,7 +14,7 @@ A web application for launching and managing Facebook advertising campaigns.
 
 1. Clone the repository (if not already done):
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/vishaldfreak/FB-CAMPAIGN-LAUNCHER-2.git
    cd "Facebook Campaign Launcher"
    ```
 
@@ -44,7 +44,7 @@ To work on this project from another machine using Cursor:
 
 1. **Clone the repository:**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/vishaldfreak/FB-CAMPAIGN-LAUNCHER-2.git
    cd "Facebook Campaign Launcher"
    ```
 
