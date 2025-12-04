@@ -31,12 +31,25 @@ A web application for launching and managing Facebook advertising campaigns.
    # Edit .env with your settings
    ```
 
-4. Start the development server:
+4. Start the development servers:
+
+   **Terminal 1 - Backend:**
    ```bash
    npm start
    # or
-   yarn start
+   npm run dev
    ```
+   Backend runs on: http://localhost:3001
+
+   **Terminal 2 - Frontend:**
+   ```bash
+   cd frontend
+   npm install  # if not already done
+   npm run dev
+   ```
+   Frontend runs on: http://localhost:5173
+
+   **Access the UI at: http://localhost:5173**
 
 ### Setup on Another Machine
 
