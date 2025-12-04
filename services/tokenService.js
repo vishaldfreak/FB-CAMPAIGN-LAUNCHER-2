@@ -9,20 +9,23 @@ dotenv.config();
 class TokenService {
   constructor() {
     this.token = process.env.FB_ACCESS_TOKEN;
-    this.expiresIn = 4710; // seconds from OAuth callback
-    this.dataAccessExpirationTime = 1772581290; // Unix timestamp
+    this.expiresIn = 5350; // seconds from OAuth callback
+    this.dataAccessExpirationTime = 1772587850; // Unix timestamp
     this.tokenExpiresAt = null;
     this.calculateExpiration();
   }
 
   /**
    * Calculate token expiration timestamp
+   * Priority: data_access_expiration_time (absolute) > expiresIn (relative from now)
    */
   calculateExpiration() {
-    if (this.expiresIn) {
-      this.tokenExpiresAt = new Date(Date.now() + this.expiresIn * 1000);
-    } else if (this.dataAccessExpirationTime) {
+    if (this.dataAccessExpirationTime) {
+      // Use absolute expiration time if available (more reliable)
       this.tokenExpiresAt = new Date(this.dataAccessExpirationTime * 1000);
+    } else if (this.expiresIn) {
+      // Fallback to relative expiration (assumes token was just issued)
+      this.tokenExpiresAt = new Date(Date.now() + this.expiresIn * 1000);
     }
   }
 

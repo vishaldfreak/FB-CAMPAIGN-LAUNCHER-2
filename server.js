@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import apiRoutes from './routes/api.js';
+import userRoutes from './routes/users.js';
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Routes
 app.use('/api', apiRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

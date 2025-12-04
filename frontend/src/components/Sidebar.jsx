@@ -14,17 +14,26 @@ import {
   Divider,
   Collapse,
   IconButton,
-  useDisclosure
+  useDisclosure,
+  HStack,
+  Avatar,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem
 } from '@chakra-ui/react'
-import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons'
+import { ChevronLeftIcon, ChevronRightIcon, AddIcon } from '@chakra-ui/icons'
 import { useCampaign } from '../context/CampaignContext'
 import { 
   getPages, 
   getAdAccounts, 
   getBusinessManagers, 
   getPixels,
-  getBusinessAssets 
+  getBusinessAssets,
+  getCurrentUser,
+  getAllUsers
 } from '../services/api'
+import AddUserModal from './AddUserModal'
 
 export default function Sidebar({ currentPage, onPageChange }) {
   const { isOpen, onToggle } = useDisclosure({ defaultIsOpen: true })
@@ -42,12 +51,36 @@ export default function Sidebar({ currentPage, onPageChange }) {
   const [adAccounts, setAdAccounts] = useState([])
   const [pages, setPages] = useState([])
   const [pixels, setPixels] = useState([])
+  const [currentUser, setCurrentUser] = useState(null)
+  const [allUsers, setAllUsers] = useState([])
+  const [selectedUserId, setSelectedUserId] = useState(null)
   const [loading, setLoading] = useState(false)
+  const { isOpen: isAddUserOpen, onOpen: onAddUserOpen, onClose: onAddUserClose } = useDisclosure()
 
-  // Load business managers on mount
+  // Load users, current user and business managers on mount
   useEffect(() => {
+    loadAllUsers()
+    loadCurrentUser()
     loadBusinessManagers()
   }, [])
+
+  // Reload users when modal closes (after adding new user)
+  const handleUserAdded = () => {
+    loadAllUsers()
+    loadBusinessManagers() // Reload assets for new user
+  }
+
+  // Reload business managers when selected user changes
+  useEffect(() => {
+    if (selectedUserId) {
+      loadBusinessManagers()
+      // Reset selections when user changes
+      setSelectedBusinessManager(null)
+      setSelectedAdAccount(null)
+      setSelectedPage(null)
+      setSelectedPixel(null)
+    }
+  }, [selectedUserId])
 
   // Load ad accounts when BM is selected
   useEffect(() => {
@@ -60,19 +93,63 @@ export default function Sidebar({ currentPage, onPageChange }) {
     }
   }, [selectedBusinessManager])
 
-  // Load pixels when ad account is selected
+  // Load pixels when ad account is selected or user changes
   useEffect(() => {
-    if (selectedAdAccount) {
+    if (selectedAdAccount && selectedAdAccount.account_id) {
+      console.log('Ad account selected, loading pixels:', selectedAdAccount.account_id, 'for user:', selectedUserId)
       loadPixels(selectedAdAccount.account_id)
     } else {
       setPixels([])
     }
-  }, [selectedAdAccount])
+  }, [selectedAdAccount, selectedUserId])
+
+  const loadAllUsers = async () => {
+    try {
+      const response = await getAllUsers()
+      if (response.data.success && response.data.data) {
+        setAllUsers(response.data.data)
+        // Set first user as selected if none selected
+        if (!selectedUserId && response.data.data.length > 0) {
+          setSelectedUserId(response.data.data[0].user_id)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+    }
+  }
+
+  const loadCurrentUser = async () => {
+    try {
+      const response = await getCurrentUser()
+      if (response.data.success && response.data.data) {
+        const userData = response.data.data
+        setCurrentUser({
+          name: userData.name || userData.id || 'Current User',
+          picture: userData.picture?.data?.url || null
+        })
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error)
+      setCurrentUser({ name: 'Current User', picture: null }) // Fallback
+    }
+  }
+
+  const selectedUser = allUsers.find(u => u.user_id === selectedUserId) || currentUser
 
   const loadBusinessManagers = async () => {
     try {
       setLoading(true)
-      const response = await getBusinessManagers()
+      // Get user_name from selected user
+      let userName = null
+      if (selectedUserId) {
+        const user = allUsers.find(u => u.user_id === selectedUserId)
+        if (user) {
+          userName = user.user_name
+        }
+      }
+      console.log('Loading business managers for user:', userName)
+      const response = await getBusinessManagers(userName)
+      console.log('Business managers loaded:', response.data.data)
       setBusinessManagers(response.data.data || [])
     } catch (error) {
       console.error('Error loading business managers:', error)
@@ -84,7 +161,16 @@ export default function Sidebar({ currentPage, onPageChange }) {
   const loadAdAccounts = async (businessId) => {
     try {
       setLoading(true)
-      const response = await getAdAccounts(businessId)
+      let userName = null
+      if (selectedUserId) {
+        const user = allUsers.find(u => u.user_id === selectedUserId)
+        if (user) {
+          userName = user.user_name
+        }
+      }
+      console.log('Loading ad accounts for business:', businessId, 'user:', userName)
+      const response = await getAdAccounts(businessId, userName)
+      console.log('Ad accounts loaded:', response.data.data)
       setAdAccounts(response.data.data || [])
     } catch (error) {
       console.error('Error loading ad accounts:', error)
@@ -96,7 +182,14 @@ export default function Sidebar({ currentPage, onPageChange }) {
   const loadPages = async (businessId) => {
     try {
       setLoading(true)
-      const response = await getPages(businessId)
+      const params = businessId ? { business_id: businessId } : {}
+      if (selectedUserId) {
+        const user = allUsers.find(u => u.user_id === selectedUserId)
+        if (user) {
+          params.user_name = user.user_name
+        }
+      }
+      const response = await getPages(businessId, params.user_name)
       setPages(response.data.data || [])
     } catch (error) {
       console.error('Error loading pages:', error)
@@ -108,18 +201,30 @@ export default function Sidebar({ currentPage, onPageChange }) {
   const loadPixels = async (adAccountId) => {
     try {
       setLoading(true)
+      // Ensure accountId is in the correct format (with act_ prefix for API call)
+      // But the database stores it without act_ prefix
       const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`
-      const response = await getPixels(accountId)
+      let userName = null
+      if (selectedUserId) {
+        const user = allUsers.find(u => u.user_id === selectedUserId)
+        if (user) {
+          userName = user.user_name
+        }
+      }
+      console.log('Loading pixels for account:', accountId, 'user:', userName)
+      const response = await getPixels(accountId, userName)
+      console.log('Pixels loaded:', response.data.data)
       setPixels(response.data.data || [])
     } catch (error) {
       console.error('Error loading pixels:', error)
+      setPixels([]) // Clear pixels on error
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSelection = () => {
-    // Update context with selected assets
+  // Sync context whenever local state changes
+  useEffect(() => {
     updateSelectedAssets({
       businessManager: selectedBusinessManager,
       adAccount: selectedAdAccount,
@@ -127,12 +232,7 @@ export default function Sidebar({ currentPage, onPageChange }) {
       pixel: selectedPixel,
       timezoneId: selectedAdAccount?.timezone_id || null
     })
-
-    // Auto-hide sidebar after selection (if all required fields selected)
-    if (selectedBusinessManager && selectedAdAccount && selectedPage) {
-      // Could auto-hide here if desired
-    }
-  }
+  }, [selectedBusinessManager, selectedAdAccount, selectedPage, selectedPixel, updateSelectedAssets])
 
   return (
     <Box
@@ -163,20 +263,51 @@ export default function Sidebar({ currentPage, onPageChange }) {
 
           {/* Select FB Profile */}
           <Box>
-            <Text fontSize="sm" fontWeight="bold" mb={2}>
-              Select FB Profile
-            </Text>
+            <HStack justify="space-between" mb={2}>
+              <Text fontSize="sm" fontWeight="bold">
+                Select FB Profile
+              </Text>
+              <IconButton
+                icon={<AddIcon />}
+                size="xs"
+                onClick={onAddUserOpen}
+                aria-label="Add new user"
+              />
+            </HStack>
             <Select
               placeholder="Select profile"
-              value={selectedProfile?.id || ''}
+              value={selectedUserId || ''}
               onChange={(e) => {
-                setSelectedProfile({ id: e.target.value })
-                handleSelection()
+                setSelectedUserId(e.target.value)
               }}
             >
-              <option value="current">Current User</option>
+              {allUsers.map(user => (
+                <option key={user.user_id} value={user.user_id}>
+                  {user.user_name || user.user_id}
+                </option>
+              ))}
             </Select>
+            {selectedUser && (
+              <HStack spacing={2} mt={2}>
+                {selectedUser.user_picture_url && (
+                  <Avatar
+                    size="sm"
+                    src={selectedUser.user_picture_url}
+                    name={selectedUser.user_name}
+                  />
+                )}
+                <Text fontSize="xs" color="gray.600">
+                  {selectedUser.user_name || selectedUser.user_id}
+                </Text>
+              </HStack>
+            )}
           </Box>
+
+          <AddUserModal
+            isOpen={isAddUserOpen}
+            onClose={onAddUserClose}
+            onUserAdded={handleUserAdded}
+          />
 
           {/* Select Business Manager */}
           <Box>
@@ -192,7 +323,6 @@ export default function Sidebar({ currentPage, onPageChange }) {
                 setSelectedAdAccount(null)
                 setSelectedPixel(null)
                 setSelectedPage(null)
-                handleSelection()
               }}
             >
               {businessManagers.map(bm => (
@@ -215,7 +345,6 @@ export default function Sidebar({ currentPage, onPageChange }) {
                 const account = adAccounts.find(a => a.account_id === e.target.value)
                 setSelectedAdAccount(account || null)
                 setSelectedPixel(null)
-                handleSelection()
               }}
               isDisabled={!selectedBusinessManager}
             >
@@ -238,7 +367,6 @@ export default function Sidebar({ currentPage, onPageChange }) {
               onChange={(e) => {
                 const page = pages.find(p => p.page_id === e.target.value)
                 setSelectedPage(page || null)
-                handleSelection()
               }}
               isDisabled={!selectedBusinessManager}
             >
@@ -261,7 +389,6 @@ export default function Sidebar({ currentPage, onPageChange }) {
               onChange={(e) => {
                 const pixel = pixels.find(p => p.pixel_id === e.target.value)
                 setSelectedPixel(pixel || null)
-                handleSelection()
               }}
               isDisabled={!selectedAdAccount}
             >

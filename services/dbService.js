@@ -8,13 +8,15 @@ import supabase from './supabase.js';
 /**
  * Upsert pages
  */
-export async function upsertPages(pages) {
+export async function upsertPages(pages, userName = null, userToken = null) {
   const pagesData = pages.map(page => ({
     page_id: page.id,
     name: page.name || 'Untitled Page',
     access_token: page.access_token || null,
     category: page.category || null,
     business_id: page.business?.id || null,
+    user_name: userName,
+    user_token: userToken,
     updated_at: new Date().toISOString()
   }));
 
@@ -37,7 +39,7 @@ export async function upsertPages(pages) {
 /**
  * Upsert ad accounts
  */
-export async function upsertAdAccounts(adAccounts) {
+export async function upsertAdAccounts(adAccounts, userName = null, userToken = null) {
   const accountsData = adAccounts.map(account => ({
     account_id: account.id.replace('act_', ''),
     name: account.name || account.id,
@@ -45,6 +47,8 @@ export async function upsertAdAccounts(adAccounts) {
     currency: account.currency || null,
     timezone_id: account.timezone_id || null,
     business_id: account.business?.id || null,
+    user_name: userName,
+    user_token: userToken,
     updated_at: new Date().toISOString()
   }));
 
@@ -67,10 +71,12 @@ export async function upsertAdAccounts(adAccounts) {
 /**
  * Upsert business managers
  */
-export async function upsertBusinessManagers(businesses) {
+export async function upsertBusinessManagers(businesses, userName = null, userToken = null) {
   const businessesData = businesses.map(business => ({
     business_id: business.id,
     name: business.name || 'Untitled Business',
+    user_name: userName,
+    user_token: userToken,
     updated_at: new Date().toISOString()
   }));
 
@@ -93,13 +99,15 @@ export async function upsertBusinessManagers(businesses) {
 /**
  * Upsert pixels
  */
-export async function upsertPixels(pixels, adAccountId) {
+export async function upsertPixels(pixels, adAccountId, userName = null, userToken = null) {
   const pixelsData = pixels.map(pixel => ({
     pixel_id: pixel.id,
     name: pixel.name || 'Untitled Pixel',
     ad_account_id: adAccountId.replace('act_', ''),
     owner_business_id: pixel.owner_business?.id || null,
     permission_level: 'unknown', // Will be validated later
+    user_name: userName,
+    user_token: userToken,
     updated_at: new Date().toISOString()
   }));
 
@@ -209,7 +217,7 @@ export async function recordSyncHistory(syncType, itemsCount, status = 'success'
  * Get all pages
  * If businessId is provided, filter by business_id OR by business_assets relationship
  */
-export async function getPages(businessId = null) {
+export async function getPages(businessId = null, userName = null) {
   if (businessId) {
     // First, get page IDs from business_assets table for this business
     const { data: businessAssets, error: assetsError } = await supabase
@@ -262,13 +270,23 @@ export async function getPages(businessId = null) {
     // Sort by name
     uniquePages.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+    // Filter by user_name if provided
+    if (userName) {
+      return uniquePages.filter(page => page.user_name === userName);
+    }
     return uniquePages;
   } else {
     // No business filter - return all pages
-    const { data, error } = await supabase
+    let query = supabase
       .from('pages')
-      .select('*')
-      .order('name');
+      .select('*');
+    
+    // Filter by user_name if provided
+    if (userName) {
+      query = query.eq('user_name', userName);
+    }
+    
+    const { data, error } = await query.order('name');
 
     if (error) {
       console.error('Error fetching pages:', error);
@@ -283,7 +301,7 @@ export async function getPages(businessId = null) {
  * Get all ad accounts
  * If businessId is provided, filter by business_id OR by business_assets relationship
  */
-export async function getAdAccounts(businessId = null) {
+export async function getAdAccounts(businessId = null, userName = null) {
   if (businessId) {
     // First, get ad account IDs from business_assets table for this business
     const { data: businessAssets, error: assetsError } = await supabase
@@ -339,13 +357,23 @@ export async function getAdAccounts(businessId = null) {
     // Sort by name
     uniqueAccounts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+    // Filter by user_name if provided
+    if (userName) {
+      return uniqueAccounts.filter(account => account.user_name === userName);
+    }
     return uniqueAccounts;
   } else {
     // No business filter - return all ad accounts
-    const { data, error } = await supabase
+    let query = supabase
       .from('ad_accounts')
-      .select('*')
-      .order('name');
+      .select('*');
+    
+    // Filter by user_name if provided
+    if (userName) {
+      query = query.eq('user_name', userName);
+    }
+    
+    const { data, error } = await query.order('name');
 
     if (error) {
       console.error('Error fetching ad accounts:', error);
@@ -358,12 +386,19 @@ export async function getAdAccounts(businessId = null) {
 
 /**
  * Get all business managers
+ * If userName is provided, filter by user_name
  */
-export async function getBusinessManagers() {
-  const { data, error } = await supabase
+export async function getBusinessManagers(userName = null) {
+  let query = supabase
     .from('business_managers')
-    .select('*')
-    .order('name');
+    .select('*');
+  
+  // Filter by user_name if provided
+  if (userName) {
+    query = query.eq('user_name', userName);
+  }
+  
+  const { data, error } = await query.order('name');
 
   if (error) {
     console.error('Error fetching business managers:', error);
@@ -375,20 +410,32 @@ export async function getBusinessManagers() {
 
 /**
  * Get pixels for ad account
+ * If userName is provided, filter by user_name
  */
-export async function getPixels(adAccountId) {
+export async function getPixels(adAccountId, userName = null) {
+  // Remove act_ prefix if present (database stores without prefix)
   const accountId = adAccountId.replace('act_', '');
   
-  const { data, error } = await supabase
+  console.log('Fetching pixels for ad_account_id:', accountId, 'user_name:', userName);
+  
+  let query = supabase
     .from('pixels')
     .select('*')
     .eq('ad_account_id', accountId);
+  
+  // Filter by user_name if provided
+  if (userName) {
+    query = query.eq('user_name', userName);
+  }
+  
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching pixels:', error);
     throw error;
   }
 
+  console.log(`Found ${data?.length || 0} pixels for account ${accountId}`);
   return data || [];
 }
 
@@ -407,4 +454,85 @@ export async function getBusinessAssets(businessId) {
   }
 
   return data || [];
+}
+
+/**
+ * Get count of unique users synced in database
+ * Uses user_tokens table if available, otherwise counts unique user_names from asset tables
+ */
+export async function getUserCount() {
+  try {
+    // First try to get count from user_tokens table (more accurate)
+    try {
+      const { count, error } = await supabase
+        .from('user_tokens')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (!error && count !== null) {
+        return count;
+      }
+    } catch (err) {
+      // Table might not exist yet, fall back to counting from asset tables
+      console.log('user_tokens table not available, counting from asset tables');
+    }
+
+    // Fallback: Get all unique user_names from all asset tables
+    const [pagesData, accountsData, bmsData, pixelsData] = await Promise.all([
+      supabase.from('pages').select('user_name').not('user_name', 'is', null),
+      supabase.from('ad_accounts').select('user_name').not('user_name', 'is', null),
+      supabase.from('business_managers').select('user_name').not('user_name', 'is', null),
+      supabase.from('pixels').select('user_name').not('user_name', 'is', null)
+    ]);
+
+    // Combine all user_names and get unique count
+    const allUserNames = new Set();
+    
+    if (pagesData.data) {
+      pagesData.data.forEach(item => {
+        if (item.user_name) allUserNames.add(item.user_name);
+      });
+    }
+    if (accountsData.data) {
+      accountsData.data.forEach(item => {
+        if (item.user_name) allUserNames.add(item.user_name);
+      });
+    }
+    if (bmsData.data) {
+      bmsData.data.forEach(item => {
+        if (item.user_name) allUserNames.add(item.user_name);
+      });
+    }
+    if (pixelsData.data) {
+      pixelsData.data.forEach(item => {
+        if (item.user_name) allUserNames.add(item.user_name);
+      });
+    }
+
+    return allUserNames.size;
+  } catch (error) {
+    console.error('Error getting user count:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get count of pixels synced in database
+ */
+export async function getPixelCount() {
+  try {
+    const { count, error } = await supabase
+      .from('pixels')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      console.error('Error getting pixel count:', error);
+      throw error;
+    }
+
+    return count || 0;
+  } catch (error) {
+    console.error('Error getting pixel count:', error);
+    throw error;
+  }
 }

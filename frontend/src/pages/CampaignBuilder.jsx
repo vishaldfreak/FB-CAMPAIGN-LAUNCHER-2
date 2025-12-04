@@ -66,33 +66,99 @@ export default function CampaignBuilder() {
       }
 
       // Prepare ad set data
+      // Transform targeting for Meta API format
+      const targeting = { ...adSetData.targeting }
+      
+      // Convert gender to Meta API format (array of numbers: [1] = male, [2] = female, [1,2] = all)
+      if (targeting.gender) {
+        if (targeting.gender === 'ALL' || !targeting.gender) {
+          targeting.genders = [1, 2] // All genders
+        } else if (targeting.gender === 'MALE') {
+          targeting.genders = [1]
+        } else if (targeting.gender === 'FEMALE') {
+          targeting.genders = [2]
+        }
+        delete targeting.gender // Remove the string gender field
+      }
+      
+      // Convert countries to country codes if they're objects
+      if (targeting.geo_locations?.countries) {
+        targeting.geo_locations.countries = targeting.geo_locations.countries.map(country => 
+          typeof country === 'string' ? country : country.code
+        )
+      }
+      if (targeting.geo_locations?.excluded_countries) {
+        targeting.geo_locations.excluded_countries = targeting.geo_locations.excluded_countries.map(country => 
+          typeof country === 'string' ? country : country.code
+        )
+      }
+      
+      // Ensure optimization_goal is set (required for most objectives)
+      if (!adSetData.optimization_goal && campaignData.objective) {
+        // Set default optimization goal based on objective
+        const defaultGoals = {
+          'OUTCOME_SALES': 'OFFSITE_CONVERSIONS',
+          'OUTCOME_TRAFFIC': 'LINK_CLICKS',
+          'OUTCOME_LEADS': 'OFFSITE_CONVERSIONS',
+          'OUTCOME_ENGAGEMENT': 'POST_ENGAGEMENT',
+          'OUTCOME_AWARENESS': 'REACH',
+          'OUTCOME_APP_PROMOTION': 'APP_INSTALLS'
+        }
+        adSetData.optimization_goal = defaultGoals[campaignData.objective] || 'LINK_CLICKS'
+      }
+
       const adSetPayload = {
         name: adSetData.name,
         daily_budget: adSetData.daily_budget,
         lifetime_budget: adSetData.lifetime_budget,
-        targeting: adSetData.targeting,
+        targeting: targeting,
         start_time: adSetData.start_time,
         end_time: adSetData.end_time,
         optimization_goal: adSetData.optimization_goal,
         billing_event: adSetData.billing_event || 'IMPRESSIONS',
         status: adSetData.status || 'PAUSED',
-        campaign_objective: campaignData.objective
+        campaign_objective: campaignData.objective,
+        timezone_id: selectedAssets.timezoneId || 'America/Los_Angeles' // Default timezone
       }
 
       // Prepare creative data
+      // Ensure we have required fields
+      if (!selectedAssets.page?.page_id) {
+        toast({
+          title: 'Error',
+          description: 'Please select a Facebook Page from the sidebar',
+          status: 'error',
+          duration: 3000
+        })
+        return
+      }
+
+      if (!creativeData.website_url) {
+        toast({
+          title: 'Error',
+          description: 'Website URL is required',
+          status: 'error',
+          duration: 3000
+        })
+        return
+      }
+
       const creativePayload = {
         name: creativeData.name || `${campaignData.name} - Creative`,
-        format: creativeData.format || 'standard',
+        format: creativeData.format || 'SINGLE_IMAGE_OR_VIDEO',
         object_story_spec: {
-          page_id: selectedAssets.page?.page_id,
+          page_id: selectedAssets.page.page_id,
           link_data: {
-            message: creativeData.description || '',
-            link: creativeData.website_url || '',
+            message: creativeData.primary_text || creativeData.description || '',
+            link: creativeData.website_url,
             caption: creativeData.headline || '',
-            picture: creativeData.image_hash || creativeData.picture || '',
-            call_to_action: {
-              type: creativeData.call_to_action || 'LEARN_MORE'
-            }
+            name: creativeData.display_link || creativeData.website_url,
+            ...(creativeData.image_hash && { picture: creativeData.image_hash }),
+            ...(creativeData.call_to_action && {
+              call_to_action: {
+                type: creativeData.call_to_action
+              }
+            })
           }
         }
       }
@@ -123,11 +189,17 @@ export default function CampaignBuilder() {
 
     } catch (error) {
       console.error('Error creating campaign:', error)
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Unknown error occurred'
+      console.error('Full error response:', error.response?.data)
       toast({
         title: 'Error',
-        description: error.response?.data?.error || error.message,
+        description: typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
         status: 'error',
-        duration: 5000
+        duration: 10000,
+        isClosable: true
       })
     } finally {
       setSubmitting(false)

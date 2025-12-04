@@ -25,12 +25,45 @@ router.get('/token/status', (req, res) => {
 });
 
 /**
+ * GET /api/current-user
+ * Get current user information from Meta API
+ */
+router.get('/current-user', async (req, res) => {
+  try {
+    const currentUser = await metaApi.fetchCurrentUser();
+    res.json({
+      success: true,
+      data: currentUser
+    });
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data?.error?.message || error.message
+    });
+  }
+});
+
+/**
  * POST /api/sync-assets
  * Fetch and store all assets from Meta API
  */
 router.post('/sync-assets', async (req, res) => {
   try {
     console.log('Starting asset sync...');
+    
+    // Fetch current user information
+    let userName = null;
+    try {
+      const currentUser = await metaApi.fetchCurrentUser();
+      userName = currentUser.name || currentUser.id || null;
+      console.log(`Fetched user: ${userName}`);
+    } catch (error) {
+      console.warn('Could not fetch current user info:', error.message);
+    }
+
+    // Get the access token
+    const userToken = tokenService.getToken();
     
     // Fetch all assets
     const [pages, adAccounts, businesses] = await Promise.all([
@@ -41,11 +74,11 @@ router.post('/sync-assets', async (req, res) => {
 
     console.log(`Fetched ${pages.length} pages, ${adAccounts.length} ad accounts, ${businesses.length} businesses`);
 
-    // Store in database
+    // Store in database with user info
     const [storedPages, storedAccounts, storedBusinesses] = await Promise.all([
-      dbService.upsertPages(pages),
-      dbService.upsertAdAccounts(adAccounts),
-      dbService.upsertBusinessManagers(businesses)
+      dbService.upsertPages(pages, userName, userToken),
+      dbService.upsertAdAccounts(adAccounts, userName, userToken),
+      dbService.upsertBusinessManagers(businesses, userName, userToken)
     ]);
 
     // Fetch ad accounts for each business manager to get all relationships
@@ -70,7 +103,7 @@ router.post('/sync-assets', async (req, res) => {
     // Upsert business-specific ad accounts (this will update business_id)
     if (allBusinessAdAccounts.length > 0) {
       console.log(`Upserting ${allBusinessAdAccounts.length} business-specific ad accounts...`);
-      await dbService.upsertAdAccounts(allBusinessAdAccounts);
+      await dbService.upsertAdAccounts(allBusinessAdAccounts, userName, userToken);
     }
 
     // Combine all ad accounts (personal + business)
@@ -86,7 +119,7 @@ router.post('/sync-assets', async (req, res) => {
       try {
         const pixels = await metaApi.fetchPixels(account.id);
         if (pixels.length > 0) {
-          await dbService.upsertPixels(pixels, account.id);
+          await dbService.upsertPixels(pixels, account.id, userName, userToken);
           allPixels.push(...pixels);
         }
       } catch (error) {
@@ -133,7 +166,8 @@ router.post('/sync-assets', async (req, res) => {
 router.get('/pages', async (req, res) => {
   try {
     const businessId = req.query.business_id || null;
-    const pages = await dbService.getPages(businessId);
+    const userName = req.query.user_name || null;
+    const pages = await dbService.getPages(businessId, userName);
     res.json({ success: true, data: pages });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -147,7 +181,8 @@ router.get('/pages', async (req, res) => {
 router.get('/ad-accounts', async (req, res) => {
   try {
     const businessId = req.query.business_id || null;
-    const adAccounts = await dbService.getAdAccounts(businessId);
+    const userName = req.query.user_name || null;
+    const adAccounts = await dbService.getAdAccounts(businessId, userName);
     res.json({ success: true, data: adAccounts });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -160,7 +195,8 @@ router.get('/ad-accounts', async (req, res) => {
  */
 router.get('/business-managers', async (req, res) => {
   try {
-    const businesses = await dbService.getBusinessManagers();
+    const userName = req.query.user_name || null;
+    const businesses = await dbService.getBusinessManagers(userName);
     res.json({ success: true, data: businesses });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -174,7 +210,8 @@ router.get('/business-managers', async (req, res) => {
 router.get('/pixels/:adAccountId', async (req, res) => {
   try {
     const { adAccountId } = req.params;
-    const pixels = await dbService.getPixels(adAccountId);
+    const userName = req.query.user_name || null;
+    const pixels = await dbService.getPixels(adAccountId, userName);
     
     // TODO: Re-validate pixel permissions at request time (Phase 1 enhancement)
     
@@ -194,6 +231,30 @@ router.get('/business-assets/:businessId', async (req, res) => {
     const assets = await dbService.getBusinessAssets(businessId);
     res.json({ success: true, data: assets });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/stats
+ * Get dashboard statistics
+ */
+router.get('/stats', async (req, res) => {
+  try {
+    const [userCount, pixelCount] = await Promise.all([
+      dbService.getUserCount(),
+      dbService.getPixelCount()
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        userCount,
+        pixelCount
+      }
+    });
+  } catch (error) {
+    console.error('Error getting stats:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

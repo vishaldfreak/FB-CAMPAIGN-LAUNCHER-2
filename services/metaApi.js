@@ -363,10 +363,29 @@ async function fetchPixels(adAccountId) {
   }
 }
 
+/**
+ * Fetch current user information
+ */
+async function fetchCurrentUser() {
+  try {
+    const url = `${BASE_URL}/me`;
+    const params = {
+      fields: 'id,name,picture.type(large)'
+    };
+
+    const response = await makeRequest(url, params);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching current user:', error.response?.data?.error || error.message);
+    throw error;
+  }
+}
+
 export default {
   fetchPages,
   fetchAdAccounts,
   fetchAdAccountsForBusiness,
   fetchBusinessManagers,
-  fetchPixels
+  fetchPixels,
+  fetchCurrentUser
 };

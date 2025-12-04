@@ -310,10 +310,21 @@ router.post('/campaigns/create-full', async (req, res) => {
     } catch (error) {
       // Rollback: Store created IDs for manual cleanup
       console.error('Error in campaign creation flow:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack
+      });
+      
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.error?.error_user_msg ||
+                          error.message || 
+                          'Unknown error occurred';
       
       res.status(500).json({
         success: false,
-        error: error.response?.data?.error?.message || error.message,
+        error: errorMessage,
+        error_details: error.response?.data?.error || error.response?.data,
         created_ids: createdIds, // Return created IDs for cleanup
         message: 'Campaign creation failed. Some resources may have been created. Use created_ids for cleanup.'
       });

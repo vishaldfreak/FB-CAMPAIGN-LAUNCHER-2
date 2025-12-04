@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS pages (
   access_token TEXT,
   category VARCHAR(255),
   business_id VARCHAR(255),
+  user_name VARCHAR(255),
+  user_token TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -22,6 +24,8 @@ CREATE TABLE IF NOT EXISTS ad_accounts (
   currency VARCHAR(10),
   timezone_id INTEGER,
   business_id VARCHAR(255),
+  user_name VARCHAR(255),
+  user_token TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -31,6 +35,8 @@ CREATE TABLE IF NOT EXISTS business_managers (
   id BIGSERIAL PRIMARY KEY,
   business_id VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255),
+  user_name VARCHAR(255),
+  user_token TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -43,6 +49,8 @@ CREATE TABLE IF NOT EXISTS pixels (
   ad_account_id VARCHAR(255),
   owner_business_id VARCHAR(255),
   permission_level VARCHAR(50),
+  user_name VARCHAR(255),
+  user_token TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -68,14 +76,19 @@ CREATE TABLE IF NOT EXISTS sync_history (
   status VARCHAR(50) DEFAULT 'success' -- 'success', 'failed', 'partial'
 );
 
--- Tokens table (for future use)
-CREATE TABLE IF NOT EXISTS tokens (
+-- User Tokens table (for multiple users)
+CREATE TABLE IF NOT EXISTS user_tokens (
   id BIGSERIAL PRIMARY KEY,
-  token_type VARCHAR(50) NOT NULL, -- 'user', 'system', 'long_lived'
-  token_value TEXT NOT NULL,
-  expires_at TIMESTAMP WITH TIME ZONE,
-  business_id VARCHAR(255),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  user_id VARCHAR(255) UNIQUE NOT NULL,
+  user_name VARCHAR(255),
+  user_picture_url TEXT,
+  access_token TEXT NOT NULL,
+  expires_in INTEGER, -- seconds
+  data_access_expiration_time BIGINT, -- Unix timestamp
+  token_expires_at TIMESTAMP WITH TIME ZONE,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for better query performance

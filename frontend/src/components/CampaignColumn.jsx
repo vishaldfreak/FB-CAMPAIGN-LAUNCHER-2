@@ -16,28 +16,32 @@ import {
   FormLabel,
   Checkbox,
   CheckboxGroup,
-  Divider
+  Divider,
+  NumberInput,
+  NumberInputField,
+  HStack,
+  Switch,
+  Alert,
+  AlertIcon,
+  SimpleGrid
 } from '@chakra-ui/react'
 import { useCampaign } from '../context/CampaignContext'
 import { getAllowedOptimizationGoals } from '../utils/validators'
 
 const OBJECTIVES = [
-  { value: 'LINK_CLICKS', label: 'Link Clicks' },
-  { value: 'CONVERSIONS', label: 'Conversions' },
-  { value: 'LEAD_GENERATION', label: 'Lead Generation' },
-  { value: 'OUTCOME_TRAFFIC', label: 'Traffic (ODAX)' },
-  { value: 'OUTCOME_SALES', label: 'Sales (ODAX)' },
-  { value: 'OUTCOME_LEADS', label: 'Leads (ODAX)' },
-  { value: 'OUTCOME_ENGAGEMENT', label: 'Engagement (ODAX)' },
-  { value: 'OUTCOME_APP_PROMOTION', label: 'App Promotion (ODAX)' },
-  { value: 'OUTCOME_AWARENESS', label: 'Awareness (ODAX)' }
+  { value: 'OUTCOME_SALES', label: 'Sales', icon: '⚡' },
+  { value: 'OUTCOME_TRAFFIC', label: 'Traffic', icon: '🔀' },
+  { value: 'OUTCOME_LEADS', label: 'Leads', icon: '📄' },
+  { value: 'OUTCOME_ENGAGEMENT', label: 'Engagement', icon: '🤝' },
+  { value: 'OUTCOME_AWARENESS', label: 'Awareness', icon: '💡' },
+  { value: 'OUTCOME_APP_PROMOTION', label: 'App Promotion', icon: '📱' }
 ]
 
 const BID_STRATEGIES = [
-  { value: 'LOWEST_COST_WITHOUT_CAP', label: 'Lowest Cost (Automatic)' },
-  { value: 'LOWEST_COST_WITH_BID_CAP', label: 'Lowest Cost with Bid Cap' },
-  { value: 'COST_CAP', label: 'Cost Cap' },
-  { value: 'LOWEST_COST_WITH_MIN_ROAS', label: 'Lowest Cost with Minimum ROAS' }
+  { value: 'HIGHEST_VOLUME', label: 'Highest Volume' },
+  { value: 'COST_PER_RESULT', label: 'Cost per result goal' },
+  { value: 'BID_CAP', label: 'Bid cap' },
+  { value: 'LOWEST_COST_MIN_ROAS', label: 'Lowest Cost With Min ROAS' }
 ]
 
 export default function CampaignColumn() {
@@ -72,9 +76,6 @@ export default function CampaignColumn() {
             onChange={(e) => updateCampaignData({ name: e.target.value })}
             placeholder="Enter campaign name"
           />
-          <Button size="xs" mt={2} variant="outline">
-            Create template
-          </Button>
         </FormControl>
 
         <Divider />
@@ -83,105 +84,144 @@ export default function CampaignColumn() {
 
         {/* Campaign Objective */}
         <FormControl isRequired>
-          <FormLabel>Campaign Objective</FormLabel>
-          <Select
-            value={campaignData.objective}
-            onChange={(e) => updateCampaignData({ objective: e.target.value })}
-            placeholder="Select objective"
-          >
+          <FormLabel>Campaign Objectives</FormLabel>
+          <SimpleGrid columns={3} spacing={2} mt={2}>
             {OBJECTIVES.map(obj => (
-              <option key={obj.value} value={obj.value}>
-                {obj.label}
-              </option>
+              <Box
+                key={obj.value}
+                p={3}
+                border="2px"
+                borderColor={campaignData.objective === obj.value ? 'blue.500' : 'gray.200'}
+                borderRadius="md"
+                cursor="pointer"
+                bg={campaignData.objective === obj.value ? 'blue.50' : 'white'}
+                onClick={() => updateCampaignData({ objective: obj.value })}
+                textAlign="center"
+                _hover={{ borderColor: 'blue.300' }}
+              >
+                <Text fontSize="xl" mb={1}>{obj.icon}</Text>
+                <Text fontSize="sm" fontWeight={campaignData.objective === obj.value ? 'bold' : 'normal'}>
+                  {obj.label}
+                </Text>
+              </Box>
             ))}
-          </Select>
+          </SimpleGrid>
           {campaignData.objective && allowedGoals.length > 0 && (
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color="gray.500" mt={2}>
               Allowed optimization goals: {allowedGoals.join(', ')}
             </Text>
           )}
         </FormControl>
 
-        {/* Advantage+ Campaign Budget */}
+        <Divider />
+
+        <Heading size="sm">Advantage Campaign Budget</Heading>
+
+        {/* Advantage+ Campaign Budget Toggle */}
         <FormControl>
-          <Checkbox
-            isChecked={campaignData.advantage_plus_budget || false}
-            onChange={(e) => updateCampaignData({ advantage_plus_budget: e.target.checked })}
-          >
-            Advantage+ campaign budget
-          </Checkbox>
-          <Text fontSize="xs" color="gray.500" mt={1}>
-            Distribute budget across ad sets automatically
-          </Text>
+          <HStack justify="space-between">
+            <Box>
+              <FormLabel mb={0}>Advantage Campaign Budget</FormLabel>
+              <Text fontSize="xs" color="gray.500">
+                Distribute budget across ad sets automatically
+              </Text>
+            </Box>
+            <Switch
+              isChecked={campaignData.advantage_plus_budget || false}
+              onChange={(e) => updateCampaignData({ advantage_plus_budget: e.target.checked })}
+            />
+          </HStack>
         </FormControl>
 
-        {/* Budget */}
-        <FormControl>
-          <FormLabel>Budget</FormLabel>
-          <Select
-            value={campaignData.budget_type || 'lifetime'}
-            onChange={(e) => updateCampaignData({ budget_type: e.target.value })}
-          >
-            <option value="lifetime">Lifetime budget</option>
-            <option value="daily">Daily budget</option>
-          </Select>
-          <Input
-            type="number"
-            mt={2}
-            placeholder="0.00"
-            value={campaignData.budget_amount || ''}
-            onChange={(e) => updateCampaignData({ budget_amount: e.target.value })}
-          />
-        </FormControl>
+        {/* Budget (only shown when Advantage Campaign Budget is ON) */}
+        {campaignData.advantage_plus_budget && (
+          <>
+            <FormControl>
+              <FormLabel>Budget</FormLabel>
+              <HStack>
+                <Select
+                  value={campaignData.budget_type || 'DAILY'}
+                  onChange={(e) => updateCampaignData({ budget_type: e.target.value })}
+                  flex={1}
+                >
+                  <option value="DAILY">Daily Budget</option>
+                  <option value="LIFETIME">Lifetime Budget</option>
+                </Select>
+                <NumberInput
+                  value={campaignData.budget_type === 'LIFETIME' 
+                    ? (campaignData.lifetime_budget != null ? (campaignData.lifetime_budget / 100).toFixed(2) : '')
+                    : (campaignData.daily_budget != null ? (campaignData.daily_budget / 100).toFixed(2) : '')}
+                  onChange={(value) => {
+                    const numValue = parseFloat(value || 0)
+                    if (!isNaN(numValue)) {
+                      const cents = Math.round(numValue * 100)
+                      if (campaignData.budget_type === 'LIFETIME') {
+                        updateCampaignData({ lifetime_budget: cents })
+                      } else {
+                        updateCampaignData({ daily_budget: cents })
+                      }
+                    }
+                  }}
+                  min={1}
+                  flex={2}
+                >
+                  <NumberInputField placeholder="0.00" />
+                </NumberInput>
+                <Text>USD</Text>
+              </HStack>
+            </FormControl>
 
-        {/* Campaign Bid Strategy */}
-        <FormControl>
-          <FormLabel>Campaign Bid Strategy</FormLabel>
-          <Select
-            value={campaignData.bid_strategy || ''}
-            onChange={(e) => updateCampaignData({ bid_strategy: e.target.value || null })}
-            placeholder="Select bid strategy"
-          >
-            {BID_STRATEGIES.map(strategy => (
-              <option key={strategy.value} value={strategy.value}>
-                {strategy.label}
-              </option>
-            ))}
-          </Select>
-        </FormControl>
+            {/* Campaign Bid Strategy */}
+            <FormControl>
+              <FormLabel>Campaign Bid Strategy</FormLabel>
+              <Select
+                value={campaignData.bid_strategy || ''}
+                onChange={(e) => updateCampaignData({ bid_strategy: e.target.value || null })}
+                placeholder="Select bid strategy"
+              >
+                {BID_STRATEGIES.map(strategy => (
+                  <option key={strategy.value} value={strategy.value}>
+                    {strategy.label}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
 
-        {/* Delivery Type (conditional - shown when Bid Cap selected) */}
-        {campaignData.bid_strategy === 'LOWEST_COST_WITH_BID_CAP' && (
-          <FormControl>
-            <FormLabel>Delivery Type</FormLabel>
-            <Select placeholder="Select delivery type">
-              <option value="standard">Standard</option>
-              <option value="accelerated">Accelerated</option>
-            </Select>
-          </FormControl>
+            {/* Campaign Spending Limit */}
+            <FormControl>
+              <Checkbox
+                isChecked={campaignData.spending_limit || false}
+                onChange={(e) => updateCampaignData({ spending_limit: e.target.checked })}
+              >
+                Add campaign spending limit
+              </Checkbox>
+              {campaignData.spending_limit && (
+                <NumberInput
+                  mt={2}
+                  value={campaignData.spending_limit_amount != null ? (campaignData.spending_limit_amount / 100).toFixed(2) : ''}
+                  onChange={(value) => {
+                    const numValue = parseFloat(value || 0)
+                    if (!isNaN(numValue)) {
+                      const cents = Math.round(numValue * 100)
+                      updateCampaignData({ spending_limit_amount: cents })
+                    }
+                  }}
+                  min={1}
+                >
+                  <NumberInputField placeholder="Enter spending limit" />
+                </NumberInput>
+              )}
+            </FormControl>
+          </>
         )}
 
-        {/* Ad Set Scheduling */}
-        <FormControl>
-          <FormLabel>Ad Set Scheduling</FormLabel>
-          <VStack align="stretch" spacing={2}>
-            <Checkbox
-              isChecked={campaignData.schedule_all_times || false}
-              onChange={(e) => updateCampaignData({ schedule_all_times: e.target.checked })}
-            >
-              Deliver ads at all times
-            </Checkbox>
-            <Checkbox
-              isChecked={campaignData.schedule_custom || false}
-              onChange={(e) => updateCampaignData({ schedule_custom: e.target.checked })}
-            >
-              Set a schedule for ads
-            </Checkbox>
-            <Text fontSize="xs" color="gray.500">
-              Specific schedule will be set within each ad set
-            </Text>
-          </VStack>
-        </FormControl>
+        {!campaignData.advantage_plus_budget && (
+          <Alert status="info" fontSize="sm">
+            <AlertIcon />
+            Budget will be set at Ad Set level
+          </Alert>
+        )}
+
 
         {/* Status */}
         <FormControl>
@@ -195,21 +235,6 @@ export default function CampaignColumn() {
           </Select>
         </FormControl>
 
-        {/* Special Ad Categories */}
-        <FormControl>
-          <FormLabel>Special Ad Categories</FormLabel>
-          <CheckboxGroup
-            value={campaignData.special_ad_categories || []}
-            onChange={(values) => updateCampaignData({ special_ad_categories: values })}
-          >
-            <VStack align="start" spacing={2}>
-              <Checkbox value="NONE">None</Checkbox>
-              <Checkbox value="HOUSING">Housing</Checkbox>
-              <Checkbox value="EMPLOYMENT">Employment</Checkbox>
-              <Checkbox value="CREDIT">Credit</Checkbox>
-            </VStack>
-          </CheckboxGroup>
-        </FormControl>
       </VStack>
     </Box>
   )

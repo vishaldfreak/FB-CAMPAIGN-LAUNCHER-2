@@ -60,28 +60,57 @@ export const syncAssets = () => {
 };
 
 // Get assets
-export const getPages = (businessId = null) => {
-  return api.get('/api/pages', {
-    params: businessId ? { business_id: businessId } : {}
-  });
+export const getPages = (businessId = null, userName = null) => {
+  const params = {}
+  if (businessId) params.business_id = businessId
+  if (userName) params.user_name = userName
+  return api.get('/api/pages', { params });
 };
 
-export const getAdAccounts = (businessId = null) => {
-  return api.get('/api/ad-accounts', {
-    params: businessId ? { business_id: businessId } : {}
-  });
+export const getAdAccounts = (businessId = null, userName = null) => {
+  const params = {}
+  if (businessId) params.business_id = businessId
+  if (userName) params.user_name = userName
+  return api.get('/api/ad-accounts', { params });
 };
 
-export const getBusinessManagers = () => {
-  return api.get('/api/business-managers');
+export const getBusinessManagers = (userName = null) => {
+  const params = userName ? { user_name: userName } : {};
+  return api.get('/api/business-managers', { params });
 };
 
-export const getPixels = (adAccountId) => {
-  return api.get(`/api/pixels/${adAccountId}`);
+export const getPixels = (adAccountId, userName = null) => {
+  const params = userName ? { user_name: userName } : {};
+  return api.get(`/api/pixels/${adAccountId}`, { params });
 };
 
 export const getBusinessAssets = (businessId) => {
   return api.get(`/api/business-assets/${businessId}`);
+};
+
+export const getCurrentUser = () => {
+  return api.get('/api/current-user');
+};
+
+export const getStats = () => {
+  return api.get('/api/stats');
+};
+
+// User management
+export const getAllUsers = () => {
+  return api.get('/api/users');
+};
+
+export const addUserToken = (tokenData) => {
+  return api.post('/api/users/add-token', tokenData);
+};
+
+export const syncUserAssets = (userId) => {
+  return api.post(`/api/users/${userId}/sync-assets`);
+};
+
+export const deleteUser = (userId) => {
+  return api.delete(`/api/users/${userId}`);
 };
 
 // Campaign creation

@@ -138,7 +138,34 @@ export function transformAdSetData(data) {
 
   // Targeting (CRITICAL: Must be JSON string)
   if (data.targeting) {
-    formData.targeting = stringifyTargeting(data.targeting);
+    // Transform targeting object for Meta API
+    const targeting = { ...data.targeting };
+    
+    // Convert gender string to genders array if needed
+    if (targeting.gender && !targeting.genders) {
+      if (targeting.gender === 'ALL' || !targeting.gender) {
+        targeting.genders = [1, 2]; // All genders
+      } else if (targeting.gender === 'MALE') {
+        targeting.genders = [1];
+      } else if (targeting.gender === 'FEMALE') {
+        targeting.genders = [2];
+      }
+      delete targeting.gender; // Remove string gender field
+    }
+    
+    // Ensure countries are strings (country codes)
+    if (targeting.geo_locations?.countries) {
+      targeting.geo_locations.countries = targeting.geo_locations.countries.map(country => 
+        typeof country === 'string' ? country : country.code || country
+      );
+    }
+    if (targeting.geo_locations?.excluded_countries) {
+      targeting.geo_locations.excluded_countries = targeting.geo_locations.excluded_countries.map(country => 
+        typeof country === 'string' ? country : country.code || country
+      );
+    }
+    
+    formData.targeting = stringifyTargeting(targeting);
   }
 
   // Time fields

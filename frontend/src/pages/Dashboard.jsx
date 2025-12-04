@@ -19,7 +19,7 @@ import {
   AlertIcon,
   Badge
 } from '@chakra-ui/react'
-import { syncAssets, getPages, getAdAccounts, getBusinessManagers } from '../services/api'
+import { syncAssets, getPages, getAdAccounts, getBusinessManagers, getStats } from '../services/api'
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(false)
@@ -28,6 +28,8 @@ export default function Dashboard() {
     pages: 0,
     adAccounts: 0,
     businessManagers: 0,
+    users: 0,
+    pixels: 0,
     lastSynced: null
   })
 
@@ -38,16 +40,19 @@ export default function Dashboard() {
   const loadStats = async () => {
     try {
       setLoading(true)
-      const [pagesRes, accountsRes, bmsRes] = await Promise.all([
+      const [pagesRes, accountsRes, bmsRes, statsRes] = await Promise.all([
         getPages(),
         getAdAccounts(),
-        getBusinessManagers()
+        getBusinessManagers(),
+        getStats()
       ])
 
       setStats({
         pages: pagesRes.data.data?.length || 0,
         adAccounts: accountsRes.data.data?.length || 0,
         businessManagers: bmsRes.data.data?.length || 0,
+        users: statsRes.data.data?.userCount || 0,
+        pixels: statsRes.data.data?.pixelCount || 0,
         lastSynced: new Date().toISOString()
       })
     } catch (error) {
@@ -92,7 +97,7 @@ export default function Dashboard() {
       {loading ? (
         <Spinner size="xl" />
       ) : (
-        <SimpleGrid columns={3} spacing={4}>
+        <SimpleGrid columns={5} spacing={4}>
           <Card>
             <CardBody>
               <VStack align="start">
@@ -127,6 +132,32 @@ export default function Dashboard() {
                 </Text>
                 <Text fontSize="3xl" fontWeight="bold">
                   {stats.pages}
+                </Text>
+              </VStack>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody>
+              <VStack align="start">
+                <Text fontSize="sm" color="gray.500">
+                  Users Synced
+                </Text>
+                <Text fontSize="3xl" fontWeight="bold">
+                  {stats.users}
+                </Text>
+              </VStack>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody>
+              <VStack align="start">
+                <Text fontSize="sm" color="gray.500">
+                  Pixels Synced
+                </Text>
+                <Text fontSize="3xl" fontWeight="bold">
+                  {stats.pixels}
                 </Text>
               </VStack>
             </CardBody>

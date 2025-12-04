@@ -9,7 +9,8 @@
     "start": "node server.js",
     "dev:frontend": "cd frontend && npm run dev",
     "test:token": "node scripts/test-token.js",
-    "test:phase1": "node scripts/test-phase1.js"
+    "test:phase1": "node scripts/test-phase1.js",
+    "migrate": "node scripts/run-migration-simple.js"
   },
   "keywords": ["facebook", "ads", "campaign", "meta-api"],
   "author": "",
